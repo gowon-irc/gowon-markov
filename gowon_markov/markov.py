@@ -26,6 +26,7 @@ def create_model_dict(corpus_list):
         with open(fn) as f:
             text = f.read()
 
-        return markovify.NewlineText(text)
+        model = markovify.NewlineText(text, retain_original=False)
+        return model.compile()
 
     return {i["command"]: get_corpus(i["file"]) for i in corpus_list}

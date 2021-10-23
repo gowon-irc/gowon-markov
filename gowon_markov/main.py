@@ -3,8 +3,12 @@
 import json
 import re
 import logging
+import contextlib
+import socket
+import time
 
 import configargparse
+import markovify
 import paho.mqtt.client as mqtt
 
 from gowon_markov import markov
@@ -13,7 +17,7 @@ MODULE_NAME = "markov"
 
 
 def on_connect(client, userdata, flags, rc):
-    print(f"Connected with result code {rc}")
+    logging.info(f"Connected with result code {rc}")
 
     client.subscribe("/gowon/input")
 
@@ -49,6 +53,9 @@ def gen_on_message_handler(model_dict):
 
 
 def main():
+    logger = logging.getLogger()
+    logger.setLevel("INFO")
+
     p = configargparse.ArgParser()
     p.add("-H", "--broker-host", env_var="GOWON_BROKER_HOST", default="localhost")
     p.add(
@@ -68,11 +75,34 @@ def main():
 
     corpus_file_list = markov.split_corpus_arg(opts.corpus)
     corpus_file_list_with_root = markov.corpus_file_list_add_root(corpus_file_list, opts.data_dir)
-    model_dict = markov.create_model_dict(corpus_file_list_with_root)
+    #  model_dict = markov.create_model_dict(corpus_file_list_with_root)
+
+    model_dict = {}
+    for corpus_file in corpus_file_list_with_root:
+        with open(corpus_file["file"]) as f:
+            text = f.read()
+
+        logging.info(f"Creating corpus from file {corpus_file['file']}")
+
+        model = markovify.NewlineText(text, retain_original=False)
+        model_compiled = model.compile()
+
+        logging.info(f"Corpus created, adding to command {corpus_file['command']}")
+
+        model_dict[corpus_file["command"]] = model_compiled
 
     client.on_message = gen_on_message_handler(model_dict)
 
-    client.connect(opts.broker_host, opts.broker_port)
+    for i in range(12):
+        try:
+            client.connect(opts.broker_host, opts.broker_port)
+        except ConnectionRefusedError:
+            logging.error("connection refused, retrying after 5 seconds")
+            time.sleep(5)
+        else:
+            break
+
+    logging.info("Connected to broker")
 
     client.loop_forever()
 
