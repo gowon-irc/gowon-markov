@@ -5,7 +5,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY . /src
 WORKDIR /src
-RUN pip install -r requirements.txt
 RUN pip install .
 
 FROM python:3.10-slim
