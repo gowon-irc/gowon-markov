@@ -32,10 +32,7 @@ def gen_on_message_handler(model_cache):
 
         command = msg_in_json["command"]
 
-        logging.info(f"running command {command}")
-
         if command not in model_cache.model_fns:
-            logging.info(f"{command} is not a command")
             return
 
         logging.info(f"Fetching model for {command}")
