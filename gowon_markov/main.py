@@ -11,7 +11,7 @@ import configargparse
 import markovify
 import paho.mqtt.client as mqtt
 
-from gowon_markov import markov
+from gowon_markov import markov, cache
 
 MODULE_NAME = "markov"
 
@@ -22,7 +22,7 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("/gowon/input")
 
 
-def gen_on_message_handler(model_dict):
+def gen_on_message_handler(model_cache):
     def f(client, userdata, msg):
         try:
             msg_in_json = json.loads(msg.payload.decode())
@@ -30,13 +30,24 @@ def gen_on_message_handler(model_dict):
             logging.error("Error parsing message json")
             return
 
-        corpus = model_dict.get(msg_in_json["command"])
+        command = msg_in_json["command"]
 
-        if corpus is None:
-            logging.error("no corpus found")
+        logging.info(f"running command {command}")
+
+        if command not in model_cache.model_fns:
+            logging.info(f"{command} is not a command")
             return
 
-        out = corpus.make_sentence(tries=100)
+        logging.info(f"Fetching model for {command}")
+        model = model_cache.get(command)
+
+        if model is None:
+            logging.error(f"No model found for {command}")
+
+        out = model.make_sentence(tries=20)
+
+        if out is None:
+            logging.error(f"Could not create sentence from {command} model")
 
         msg_out_json = {
             "module": MODULE_NAME,
@@ -67,6 +78,8 @@ def main():
     )
     p.add("-C", "--corpus", env_var="GOWON_MARKOV_CORPUS", default="")
     p.add("-d", "--data-dir", env_var="GOWON_MARKOV_DATA_DIR", default="")
+    p.add("-A", "--cache-age", env_var="GOWON_MARKOV_CACHE_AGE", default="60")
+    p.add("-A", "--cache-length", env_var="GOWON_MARKOV_CACHE_LENGTH", default="1")
     opts = p.parse_args()
 
     client = mqtt.Client(f"gowon_{MODULE_NAME}")
@@ -74,24 +87,19 @@ def main():
     client.on_connect = on_connect
 
     corpus_file_list = markov.split_corpus_arg(opts.corpus)
-    corpus_file_list_with_root = markov.corpus_file_list_add_root(corpus_file_list, opts.data_dir)
-    #  model_dict = markov.create_model_dict(corpus_file_list_with_root)
+    corpus_file_list_with_root = markov.corpus_file_list_add_root(
+        corpus_file_list, opts.data_dir
+    )
 
-    model_dict = {}
+    model_cache = cache.ModelCache(
+        max_len=opts.cache_age, max_age_seconds=opts.cache_length
+    )
+
     for corpus_file in corpus_file_list_with_root:
-        with open(corpus_file["file"]) as f:
-            text = f.read()
+        command, fn = corpus_file["command"], corpus_file["fn"]
+        model_cache.add_fn(command, fn)
 
-        logging.info(f"Creating corpus from file {corpus_file['file']}")
-
-        model = markovify.NewlineText(text, retain_original=False)
-        model_compiled = model.compile()
-
-        logging.info(f"Corpus created, adding to command {corpus_file['command']}")
-
-        model_dict[corpus_file["command"]] = model_compiled
-
-    client.on_message = gen_on_message_handler(model_dict)
+    client.on_message = gen_on_message_handler(model_cache)
 
     for i in range(12):
         try:

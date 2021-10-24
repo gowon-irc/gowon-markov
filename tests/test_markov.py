@@ -4,7 +4,7 @@ from gowon_markov import markov
 
 
 def cs(c, f):
-    return {"command": c, "file": f}
+    return {"command": c, "fn": f}
 
 
 @pytest.mark.parametrize(

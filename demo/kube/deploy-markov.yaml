@@ -14,6 +14,13 @@ spec:
       labels:
         app.kubernetes.io/name: markov
     spec:
+      initContainers:
+        - name: init-file-wait
+          image: alpine:latest
+          command: ["sh", "-c", "while [[ ! -f /data/emma.txt ]]; do echo waiting for corpus file; sleep 1; done"]
+          volumeMounts:
+            - name: markov
+              mountPath: /data
       containers:
         - name: markov
           image: markov
@@ -25,9 +32,9 @@ spec:
             - name: GOWON_MARKOV_DATA_DIR
               value: /data
           volumeMounts:
-            - name: corpus
+            - name: markov
               mountPath: /data
       volumes:
-        - name: corpus
-          configMap:
-            name: corpus
+        - name: markov
+          persistentVolumeClaim:
+            claimName: markov
