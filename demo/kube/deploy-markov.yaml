@@ -17,7 +17,7 @@ spec:
       initContainers:
         - name: init-file-wait
           image: alpine:latest
-          command: ["sh", "-c", "while [[ ! -f /data/emma.txt ]]; do echo waiting for corpus file; sleep 1; done"]
+          command: ["sh", "-c", "while [[ ! -f /data/corpus.txt ]]; do echo waiting for corpus file; sleep 1; done"]
           volumeMounts:
             - name: markov
               mountPath: /data
@@ -28,7 +28,7 @@ spec:
             - name: GOWON_BROKER_HOST
               value: mosquitto
             - name: GOWON_MARKOV_CORPUS
-              value: "markov:emma.txt"
+              value: "markov:corpus.txt"
             - name: GOWON_MARKOV_DATA_DIR
               value: /data
           volumeMounts:
