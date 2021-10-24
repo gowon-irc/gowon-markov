@@ -4,7 +4,7 @@ from gowon_markov import cache
 
 
 def test_cache_expiration(mocker):
-    mocker.patch('builtins.open', mocker.mock_open(read_data="I'm the model."))
+    mocker.patch("builtins.open", mocker.mock_open(read_data="I'm the model."))
 
     c = cache.ModelCache(max_age_seconds=0.1)
     c.add_fn("m", "model.txt")
@@ -23,7 +23,7 @@ def test_cache_expiration(mocker):
 
 
 def test_cache_replaced(mocker):
-    mocker.patch('builtins.open', mocker.mock_open(read_data="I'm the model."))
+    mocker.patch("builtins.open", mocker.mock_open(read_data="I'm the model."))
 
     c = cache.ModelCache(max_len=1, max_age_seconds=60)
     c.add_fn("m1", "model1.txt")
@@ -41,7 +41,7 @@ def test_cache_replaced(mocker):
 
 
 def test_cache_in_fixture(mocker):
-    mocker.patch('builtins.open', mocker.mock_open(read_data="I'm the model."))
+    mocker.patch("builtins.open", mocker.mock_open(read_data="I'm the model."))
 
     c = cache.ModelCache(max_len=1, max_age_seconds=60)
     c.add_fn("m1", "model1.txt")
