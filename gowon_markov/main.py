@@ -79,7 +79,7 @@ def main():
     p.add("-C", "--corpus", env_var="GOWON_MARKOV_CORPUS", default="")
     p.add("-d", "--data-dir", env_var="GOWON_MARKOV_DATA_DIR", default="")
     p.add("-A", "--cache-age", env_var="GOWON_MARKOV_CACHE_AGE", default="60")
-    p.add("-A", "--cache-length", env_var="GOWON_MARKOV_CACHE_LENGTH", default="1")
+    p.add("-L", "--cache-length", env_var="GOWON_MARKOV_CACHE_LENGTH", default="1")
     opts = p.parse_args()
 
     client = mqtt.Client(f"gowon_{MODULE_NAME}")
