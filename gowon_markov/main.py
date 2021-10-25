@@ -6,14 +6,19 @@ import logging
 import contextlib
 import socket
 import time
+import threading
+import gc
 
 import configargparse
 import markovify
+import cachetools
 import paho.mqtt.client as mqtt
 
-from gowon_markov import markov, cache
+from gowon_markov import markov
 
 MODULE_NAME = "markov"
+
+CACHE_EXPIRE_INTERVAL = 300
 
 
 def on_connect(client, userdata, flags, rc):
@@ -22,7 +27,17 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe("/gowon/input")
 
 
-def gen_on_message_handler(model_cache):
+class RepeatTimer(threading.Timer):
+    def run(self):
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
+
+
+def gen_on_message_handler(corpus_dict, cache):
+    @cachetools.cached(cache=cache)
+    def cached_open_model(fn):
+        return markov.open_model(fn)
+
     def f(client, userdata, msg):
         try:
             msg_in_json = json.loads(msg.payload.decode())
@@ -31,15 +46,13 @@ def gen_on_message_handler(model_cache):
             return
 
         command = msg_in_json["command"]
+        corpus_fn = corpus_dict.get(command)
 
-        if command not in model_cache.model_fns:
+        if not corpus_fn:
             return
 
         logging.info(f"Fetching model for {command}")
-        model = model_cache.get(command)
-
-        if model is None:
-            logging.error(f"No model found for {command}")
+        model = cached_open_model(corpus_fn)
 
         out = model.make_sentence(tries=20)
 
@@ -60,6 +73,14 @@ def gen_on_message_handler(model_cache):
     return f
 
 
+def gen_cache_clear(cache):
+    def cache_clear():
+        logging.info("Clearing cache and running garbage collection")
+        cache.expire()
+        gc.collect()
+    return cache_clear
+
+
 def main():
     logger = logging.getLogger()
     logger.setLevel("INFO")
@@ -75,34 +96,24 @@ def main():
     )
     p.add("-C", "--corpus", env_var="GOWON_MARKOV_CORPUS", default="")
     p.add("-d", "--data-dir", env_var="GOWON_MARKOV_DATA_DIR", default="")
-    p.add("-A", "--cache-age", env_var="GOWON_MARKOV_CACHE_AGE", type=int, default="60")
-    p.add(
-        "-L",
-        "--cache-length",
-        env_var="GOWON_MARKOV_CACHE_LENGTH",
-        type=int,
-        default="1",
-    )
+    p.add("-L", "--cache-size", env_var="GOWON_MARKOV_CACHE_SIZE", type=int, default=1)
+    p.add("-A", "--cache-ttl", env_var="GOWON_MARKOV_CACHE_TTL", type=int, default=60)
     opts = p.parse_args()
 
     client = mqtt.Client(f"gowon_{MODULE_NAME}")
 
     client.on_connect = on_connect
 
-    corpus_file_list = markov.split_corpus_arg(opts.corpus)
-    corpus_file_list_with_root = markov.corpus_file_list_add_root(
-        corpus_file_list, opts.data_dir
-    )
+    corpus_fn_list = markov.split_corpus_arg(opts.corpus)
+    corpus_abs_fn_list = markov.corpus_abs_file_list(corpus_fn_list, opts.data_dir)
+    corpus_fn_dict = {i["command"]: i["fn"] for i in corpus_abs_fn_list}
 
-    model_cache = cache.ModelCache(
-        max_len=opts.cache_age, max_age_seconds=opts.cache_length
-    )
+    cache = cachetools.TTLCache(maxsize=opts.cache_size, ttl=opts.cache_ttl)
 
-    for corpus_file in corpus_file_list_with_root:
-        command, fn = corpus_file["command"], corpus_file["fn"]
-        model_cache.add_fn(command, fn)
+    t = RepeatTimer(CACHE_EXPIRE_INTERVAL, gen_cache_clear(cache))
+    t.start()
 
-    client.on_message = gen_on_message_handler(model_cache)
+    client.on_message = gen_on_message_handler(corpus_fn_dict, cache)
 
     for i in range(12):
         try:
@@ -116,6 +127,8 @@ def main():
     logging.info("Connected to broker")
 
     client.loop_forever()
+
+    t.cancel()
 
 
 if __name__ == "__main__":

@@ -17,16 +17,12 @@ def add_root_to_corpus_file_dict(corpus_dict, root):
     return {**corpus_dict, **{"fn": new_file}}
 
 
-def corpus_file_list_add_root(corpus_list, root):
+def corpus_abs_file_list(corpus_list, root):
     return [add_root_to_corpus_file_dict(i, root) for i in corpus_list]
 
 
-def create_model_dict(corpus_list):
-    def get_corpus(fn):
-        with open(fn) as f:
-            text = f.read()
+def open_model(fn):
+    with open(fn) as f:
+        model = markovify.NewlineText(f)
 
-        model = markovify.NewlineText(text, retain_original=False)
-        return model.compile()
-
-    return {i["command"]: get_corpus(i["fn"]) for i in corpus_list}
+    return model

@@ -45,7 +45,7 @@ def test_add_root_to_corpus_file_dict(corpus_file_dict, root, expected):
         pytest.param([], "", [], id="empty corpus list"),
     ],
 )
-def test_corpus_file_list_add_root(corpus_file_list, root, expected):
-    got = markov.corpus_file_list_add_root(corpus_file_list, root)
+def test_corpus_abs_file_list(corpus_file_list, root, expected):
+    got = markov.corpus_abs_file_list(corpus_file_list, root)
 
     assert got == expected
