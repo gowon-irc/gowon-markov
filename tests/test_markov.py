@@ -18,34 +18,34 @@ def cs(c, f):
         pytest.param("", [], id="empty arg string"),
     ],
 )
-def test_split_corpus_arg(arg, expected):
-    got = markov.split_corpus_arg(arg)
+def test_split_model_arg(arg, expected):
+    got = markov.split_model_arg(arg)
 
     assert got == expected
 
 
 @pytest.mark.parametrize(
-    "corpus_file_dict,root,expected",
+    "model_file_dict,root,expected",
     [
         pytest.param(cs("a", "b"), "", cs("a", "b"), id="no root"),
         pytest.param(cs("a", "b"), "/d", cs("a", "/d/b"), id="with root"),
     ],
 )
-def test_add_root_to_corpus_file_dict(corpus_file_dict, root, expected):
-    got = markov.add_root_to_corpus_file_dict(corpus_file_dict, root)
+def test_add_root_to_model_file_dict(model_file_dict, root, expected):
+    got = markov.add_root_to_model_file_dict(model_file_dict, root)
 
     assert got == expected
 
 
 @pytest.mark.parametrize(
-    "corpus_file_list,root,expected",
+    "model_file_list,root,expected",
     [
         pytest.param([cs("a", "b")], "", [cs("a", "b")], id="no root"),
         pytest.param([cs("a", "b")], "/d", [cs("a", "/d/b")], id="with root"),
-        pytest.param([], "", [], id="empty corpus list"),
+        pytest.param([], "", [], id="empty model list"),
     ],
 )
-def test_corpus_abs_file_list(corpus_file_list, root, expected):
-    got = markov.corpus_abs_file_list(corpus_file_list, root)
+def test_model_abs_file_list(model_file_list, root, expected):
+    got = markov.model_abs_file_list(model_file_list, root)
 
     assert got == expected

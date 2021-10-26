@@ -8,6 +8,7 @@ import socket
 import time
 import threading
 import gc
+import random
 
 import configargparse
 import markovify
@@ -33,7 +34,7 @@ class RepeatTimer(threading.Timer):
             self.function(*self.args, **self.kwargs)
 
 
-def gen_on_message_handler(corpus_dict, cache):
+def gen_on_message_handler(model_dict, cache, msg_chance, default_model):
     @cachetools.cached(cache=cache)
     def cached_open_model(fn):
         return markov.open_model(fn)
@@ -46,13 +47,15 @@ def gen_on_message_handler(corpus_dict, cache):
             return
 
         command = msg_in_json["command"]
-        corpus_fn = corpus_dict.get(command)
+        model_fn = model_dict.get(command)
 
-        if not corpus_fn:
-            return
+        if not model_fn:
+            if default_model is None and not random.uniform(0, 1) < msg_chance:
+                return
+            model_fn = default_model
 
         logging.info(f"Fetching model for {command}")
-        model = cached_open_model(corpus_fn)
+        model = cached_open_model(model_fn)
 
         out = model.make_sentence(tries=20)
 
@@ -94,26 +97,32 @@ def main():
         type=int,
         default=1883,
     )
-    p.add("-C", "--corpus", env_var="GOWON_MARKOV_CORPUS", default="")
+    p.add("-m", "--models", env_var="GOWON_MARKOV_MODELS", default="")
     p.add("-d", "--data-dir", env_var="GOWON_MARKOV_DATA_DIR", default="")
-    p.add("-L", "--cache-size", env_var="GOWON_MARKOV_CACHE_SIZE", type=int, default=1)
+    p.add("-L", "--cache-size", env_var="GOWON_MARKOV_CACHE_LENGTH", type=int, default=1)
     p.add("-A", "--cache-ttl", env_var="GOWON_MARKOV_CACHE_TTL", type=int, default=60)
+    p.add("-C", "--msg-chance", env_var="GOWON_MARKOV_MSG_CHANCE", type=float, default=0)
     opts = p.parse_args()
 
     client = mqtt.Client(f"gowon_{MODULE_NAME}")
 
     client.on_connect = on_connect
 
-    corpus_fn_list = markov.split_corpus_arg(opts.corpus)
-    corpus_abs_fn_list = markov.corpus_abs_file_list(corpus_fn_list, opts.data_dir)
-    corpus_fn_dict = {i["command"]: i["fn"] for i in corpus_abs_fn_list}
+    model_fn_list = markov.split_model_arg(opts.models)
+    model_abs_fn_list = markov.model_abs_file_list(model_fn_list, opts.data_dir)
+    model_fn_dict = {i["command"]: i["fn"] for i in model_abs_fn_list}
+
+    if len(model_abs_fn_list) > 0:
+        default_model = model_abs_fn_list[0]["fn"]
+    else:
+        default_model = None
 
     cache = cachetools.TTLCache(maxsize=opts.cache_size, ttl=opts.cache_ttl)
 
     t = RepeatTimer(CACHE_EXPIRE_INTERVAL, gen_cache_clear(cache))
     t.start()
 
-    client.on_message = gen_on_message_handler(corpus_fn_dict, cache)
+    client.on_message = gen_on_message_handler(model_fn_dict, cache, opts.msg_chance, default_model)
 
     for i in range(12):
         try:
