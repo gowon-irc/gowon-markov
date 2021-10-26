@@ -49,12 +49,20 @@ def gen_on_message_handler(model_dict, cache, msg_chance, default_model):
         command = msg_in_json["command"]
         model_fn = model_dict.get(command)
 
+        logging.debug(f"default_model = {default_model}")
+        logging.debug(f"model_fn = {model_fn}")
+        logging.debug(f"command = {command}")
+
         if not model_fn:
-            if default_model is None and not random.uniform(0, 1) < msg_chance:
+            r = random.uniform(0, 1)
+            logging.debug(f"{r} >= {msg_chance}")
+
+            if default_model is None or r >= msg_chance:
                 return
+
             model_fn = default_model
 
-        logging.info(f"Fetching model for {command}")
+        logging.info(f"Fetching model for {model_fn}")
         model = cached_open_model(model_fn)
 
         out = model.make_sentence(tries=20)
@@ -85,9 +93,6 @@ def gen_cache_clear(cache):
 
 
 def main():
-    logger = logging.getLogger()
-    logger.setLevel("INFO")
-
     p = configargparse.ArgParser()
     p.add("-H", "--broker-host", env_var="GOWON_BROKER_HOST", default="localhost")
     p.add(
@@ -102,7 +107,18 @@ def main():
     p.add("-L", "--cache-size", env_var="GOWON_MARKOV_CACHE_LENGTH", type=int, default=1)
     p.add("-A", "--cache-ttl", env_var="GOWON_MARKOV_CACHE_TTL", type=int, default=60)
     p.add("-C", "--msg-chance", env_var="GOWON_MARKOV_MSG_CHANCE", type=float, default=0)
+    p.add_argument(
+        "-l",
+        "--loglevel",
+        env_var="GOWON_MARKOV_LOG_LEVEL",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="WARNING",
+        help="log level",
+    )
     opts = p.parse_args()
+
+    logger = logging.getLogger()
+    logger.setLevel(opts.loglevel)
 
     client = mqtt.Client(f"gowon_{MODULE_NAME}")
 
