@@ -1,4 +1,4 @@
 paho-mqtt==1.5.1
 ConfigArgParse==1.5.3
 markovify==0.9.4
-cachetools==5.0.0
+cachetools==5.1.0
