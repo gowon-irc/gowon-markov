@@ -33,6 +33,10 @@ spec:
               value: "markov:corpus.json"
             - name: GOWON_MARKOV_DATA_DIR
               value: /data
+            - name: GOWON_MARKOV_LOG_LEVEL
+              value: DEBUG
+            - name: GOWON_MARKOV_MSG_CHANCE
+              value: "0.5"
           volumeMounts:
             - name: markov
               mountPath: /data

@@ -46,7 +46,7 @@ def gen_on_message_handler(model_dict, cache, msg_chance, default_model):
             logging.error("Error parsing message json")
             return
 
-        command = msg_in_json["command"]
+        command = msg_in_json.get("command", "none")
         model_fn = model_dict.get(command)
 
         logging.debug(f"default_model = {default_model}")
@@ -75,9 +75,13 @@ def gen_on_message_handler(model_dict, cache, msg_chance, default_model):
             "msg": out,
             "nick": msg_in_json["nick"],
             "dest": msg_in_json["dest"],
-            "command": msg_in_json["command"],
-            "args": msg_in_json["args"],
         }
+
+        if "command" in msg_in_json:
+            msg_out_json["command"] = msg_in_json["command"]
+
+        if "args" in msg_in_json:
+            msg_out_json["args"] = msg_in_json["args"]
 
         client.publish("/gowon/output", json.dumps(msg_out_json))
 
